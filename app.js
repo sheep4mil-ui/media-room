@@ -7,15 +7,22 @@ const sessionKey = 'media-room-token';
 let token = sessionStorage.getItem(sessionKey);
 let selection = 0;
 let refreshId = 0;
+let activeParts = [];
+
+function stopPlayback() {
+  selection++;
+  activeParts = [];
+  $('player').querySelector('audio, video')?.pause();
+  $('player').replaceChildren();
+}
 
 function leave(message = '') {
   token = null;
   sessionStorage.removeItem(sessionKey);
-  selection++;
+  stopPlayback();
   refreshId++;
   $('library').hidden = true;
   $('entrance').hidden = false;
-  $('player').replaceChildren();
   $('tracks').replaceChildren();
   status(message);
 }
@@ -57,16 +64,66 @@ async function refresh() {
     button.textContent = parts[0].key.endsWith('.mp4') ? 'Watch' : 'Listen';
     button.setAttribute('aria-label', button.textContent + ' ' + name);
     button.addEventListener('click', () => play(name, parts, button));
-    row.append(label, button);
+    const actions = document.createElement('div');
+    actions.className = 'row track-actions';
+    actions.append(button);
+    if (parts.length === 1) {
+      actions.append(deleteButton(parts[0]));
+    } else {
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      summary.textContent = 'Manage parts';
+      const list = document.createElement('ul');
+      for (const part of parts) {
+        const item = document.createElement('li');
+        const filename = document.createElement('span');
+        filename.textContent = part.name;
+        item.append(filename, deleteButton(part));
+        list.append(item);
+      }
+      details.append(summary, list);
+      actions.append(details);
+    }
+    row.append(label, actions);
     return row;
   }));
   $('empty').hidden = files.length > 0;
 }
 
+function deleteButton(file) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'secondary delete';
+  button.textContent = 'Delete';
+  button.setAttribute('aria-label', 'Delete ' + file.name);
+  button.addEventListener('click', async () => {
+    if (!window.confirm('Permanently delete “' + file.name + '” from the shared library?')) return;
+    button.disabled = true;
+    status('Deleting ' + file.name + '…');
+    try {
+      await request('/media/' + file.key, { method: 'DELETE' });
+      if (!token) return;
+      if (activeParts.some((part) => part.key === file.key)) stopPlayback();
+      try {
+        await refresh();
+        if (token) status('Deleted ' + file.name + '.');
+      } catch {
+        if (token) status('Deleted ' + file.name + '. Use Refresh to reload the library.');
+      }
+    } catch (error) {
+      if (token) status('Could not delete ' + file.name + '. ' + error.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+  return button;
+}
+
 async function play(name, parts, button) {
-  const attempt = ++selection;
+  stopPlayback();
+  const attempt = selection;
+  activeParts = parts;
   button.disabled = true;
-  $('player').querySelector('audio, video')?.pause();
   status('Opening ' + name + '…');
   const label = document.createElement('h3');
   const media = document.createElement(parts[0].key.endsWith('.mp4') ? 'video' : 'audio');

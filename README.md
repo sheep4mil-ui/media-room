@@ -13,3 +13,5 @@ MP3s can be up to 95 MB. MP4s can be up to 5 GB (5,000,000,000 bytes). Keep the 
 
 Give split MP4s the same title and unique part numbers, such as `Movie Part 1.mp4` and `Movie Part 2.mp4`. They appear as one Watch entry and play in numeric order, looping back to the first part after the last one ends.
 
+Anyone with room access can permanently delete shared uploads. Choose Delete next to a file or open Manage parts to delete one video in a series.
+

@@ -145,6 +145,10 @@ async function route(request, env, headers) {
 
   const session = request.headers.get('Authorization')?.replace(/^Bearer /, '');
   if (!await valid(env, session, 'session')) return json({ error: 'Enter the room code again.' }, 401);
+  if (media && request.method === 'DELETE') {
+    await env.MEDIA.delete(media[1]);
+    return new Response(null, { status: 204, headers });
+  }
   if (url.pathname.startsWith('/uploads/')) return multipart(request, env, url, json);
 
   if (request.method === 'GET' && url.pathname === '/files') {
@@ -182,7 +186,7 @@ export default {
       'Cache-Control': 'private, no-store',
       'X-Content-Type-Options': 'nosniff',
       'Access-Control-Allow-Origin': env.SITE_ORIGIN,
-      'Access-Control-Allow-Methods': 'GET, HEAD, PUT, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, HEAD, PUT, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Upload-Ticket',
       'Vary': 'Origin',
     });
