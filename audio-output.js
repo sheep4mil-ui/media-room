@@ -9,6 +9,12 @@ export function setupAudioOutput(getPlayer) {
   }
 
   const canPick = typeof devices.selectAudioOutput === 'function';
+  const canDiscover = !canPick && typeof devices.getUserMedia === 'function';
+  const permissionHint = document.getElementById('output-permission');
+  if (canDiscover) {
+    picker.textContent = 'Find connected devices';
+    permissionHint.hidden = false;
+  }
   const defaultOnly = 'Only the system default is available here. Change outputs in your device’s sound settings.';
   let selected = { deviceId: '', label: 'System default' };
   let busy = false;
@@ -32,8 +38,8 @@ export function setupAudioOutput(getPlayer) {
       new Option(output.label || 'Audio output ' + (index + 1), output.deviceId)));
     select.value = selected.deviceId;
     select.hidden = false;
-    picker.hidden = !canPick;
-    if (!outputs.length && !canPick) {
+    picker.hidden = !canPick && !canDiscover;
+    if (!outputs.length && !canPick && !canDiscover) {
       message.textContent = defaultOnly;
     } else if (message.textContent === defaultOnly) {
       message.textContent = '';
@@ -69,7 +75,33 @@ export function setupAudioOutput(getPlayer) {
     const option = select.selectedOptions[0];
     switchOutput(() => ({ deviceId: option.value, label: option.textContent }));
   });
-  picker.addEventListener('click', () => switchOutput(() => devices.selectAudioOutput()));
+  picker.addEventListener('click', async () => {
+    if (canPick) {
+      await switchOutput(() => devices.selectAudioOutput());
+      return;
+    }
+    if (!canDiscover || busy) return;
+    busy = true;
+    picker.disabled = true;
+    select.disabled = true;
+    message.textContent = 'Checking for connected audio devices…';
+    try {
+      const stream = await devices.getUserMedia({ audio: true });
+      for (const track of stream.getTracks()) track.stop();
+      await refresh();
+      message.textContent = select.options.length > 1
+        ? 'Choose a connected device from the Audio output list.'
+        : 'No additional outputs were found. Check that your device is connected and enabled.';
+    } catch (error) {
+      message.textContent = error.name === 'NotAllowedError'
+        ? 'Microphone permission was blocked. Allow it in the browser’s site settings to find more outputs.'
+        : 'Could not discover more outputs. Check your device’s sound settings.';
+    } finally {
+      select.disabled = false;
+      picker.disabled = false;
+      busy = false;
+    }
+  });
   devices.addEventListener('devicechange', refresh);
   refresh();
 

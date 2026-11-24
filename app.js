@@ -1,6 +1,6 @@
 import { apiUrl } from './config.js?v=2';
 import { groupVideos } from './series.js';
-import { setupAudioOutput } from './audio-output.js';
+import { setupAudioOutput } from './audio-output.js?v=6';
 
 const $ = (id) => document.getElementById(id);
 const status = (message) => { $('status').textContent = message; };

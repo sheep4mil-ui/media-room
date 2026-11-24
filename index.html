@@ -8,6 +8,7 @@
 <form id="upload"><label for="media">Choose an MP3 (up to 95 MB) or MP4 (up to 5 GB)</label><div class="row"><input id="media" type="file" accept=".mp3,.mp4,audio/mpeg,video/mp4" required><button id="uploadButton">Upload</button></div></form>
 <div class="output-settings">
 <div class="row"><label for="audio-output">Audio output</label><select id="audio-output" hidden></select><button id="pick-output" class="secondary" type="button" hidden>Choose device</button></div>
+<p id="output-permission" hidden>Your browser uses microphone permission to list more audio outputs. Media Room stops the microphone immediately and does not record or send audio.</p>
 <p id="output-status" role="status"></p>
 </div>
 <div id="player"></div><div class="row spread"><h3>Uploads</h3><button id="refresh" class="secondary" type="button">Refresh</button></div>
@@ -15,4 +16,4 @@
 <p id="empty" hidden>Your uploads will appear here.</p><ul id="tracks"></ul>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-</main><script type="module" src="app.js?v=5"></script></body></html>
+</main><script type="module" src="app.js?v=6"></script></body></html>
