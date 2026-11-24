@@ -32,3 +32,7 @@ video { max-height: 65vh; background: #10111d; }
 .track-actions details { max-width: 100%; }
 .track-actions summary { cursor: pointer; }
 button.delete { color: #ffb9c3; }
+.output-settings { margin-bottom: 1rem; }
+.output-settings label { margin: 0; }
+.output-settings select { max-width: 100%; border: 1px solid #666784; border-radius: .6rem; padding: .6rem; background: #141424; color: inherit; font: inherit; }
+#output-status { color: #c3bfd8; margin-top: .5rem; }

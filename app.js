@@ -1,5 +1,6 @@
 import { apiUrl } from './config.js?v=2';
 import { groupVideos } from './series.js';
+import { setupAudioOutput } from './audio-output.js';
 
 const $ = (id) => document.getElementById(id);
 const status = (message) => { $('status').textContent = message; };
@@ -8,6 +9,7 @@ let token = sessionStorage.getItem(sessionKey);
 let selection = 0;
 let refreshId = 0;
 let activeParts = [];
+const applyAudioOutput = setupAudioOutput(() => $('player').querySelector('audio, video'));
 
 function stopPlayback() {
   selection++;
@@ -136,6 +138,8 @@ async function play(name, parts, button) {
   async function loadPart() {
     const part = parts[index];
     const { url } = await request('/media/' + part.key, { method: 'POST' });
+    if (attempt !== selection) return;
+    await applyAudioOutput(media);
     if (attempt !== selection) return;
     label.textContent = series ? name + ' · Part ' + (index + 1) + ' of ' + parts.length : name;
     media.setAttribute('aria-label', label.textContent);
