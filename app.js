@@ -1,4 +1,5 @@
 import { apiUrl } from './config.js?v=2';
+import { groupVideos } from './series.js';
 
 const $ = (id) => document.getElementById(id);
 const status = (message) => { $('status').textContent = message; };
@@ -47,42 +48,60 @@ async function refresh() {
   } while (cursor);
 
   files.sort((a, b) => b.uploaded.localeCompare(a.uploaded));
-  $('tracks').replaceChildren(...files.map((file) => {
+  $('tracks').replaceChildren(...groupVideos(files).map(({ name, parts }) => {
     const row = document.createElement('li');
     const label = document.createElement('span');
-    label.textContent = file.name;
+    label.textContent = parts.length > 1 ? name + ' · ' + parts.length + ' parts' : name;
     const button = document.createElement('button');
     button.className = 'secondary';
-    button.textContent = file.key.endsWith('.mp4') ? 'Watch' : 'Listen';
-    button.setAttribute('aria-label', button.textContent + ' ' + file.name);
-    button.addEventListener('click', () => play(file, button));
+    button.textContent = parts[0].key.endsWith('.mp4') ? 'Watch' : 'Listen';
+    button.setAttribute('aria-label', button.textContent + ' ' + name);
+    button.addEventListener('click', () => play(name, parts, button));
     row.append(label, button);
     return row;
   }));
   $('empty').hidden = files.length > 0;
 }
 
-async function play(file, button) {
+async function play(name, parts, button) {
   const attempt = ++selection;
   button.disabled = true;
-  status('Opening ' + file.name + '…');
-  try {
-    const { url } = await request('/media/' + file.key, { method: 'POST' });
+  $('player').querySelector('audio, video')?.pause();
+  status('Opening ' + name + '…');
+  const label = document.createElement('h3');
+  const media = document.createElement(parts[0].key.endsWith('.mp4') ? 'video' : 'audio');
+  media.controls = true;
+  media.preload = 'metadata';
+  media.setAttribute('playsinline', '');
+  const series = parts.length > 1;
+  let index = 0;
+
+  async function loadPart() {
+    const part = parts[index];
+    const { url } = await request('/media/' + part.key, { method: 'POST' });
     if (attempt !== selection) return;
-    const label = document.createElement('h3');
-    label.textContent = file.name;
-    const media = document.createElement(file.key.endsWith('.mp4') ? 'video' : 'audio');
-    media.controls = true;
-    media.preload = 'metadata';
-    media.setAttribute('playsinline', '');
-    media.setAttribute('aria-label', file.name);
-    media.addEventListener('error', () => {
-      if (media.isConnected) status('Playback failed. Reopen the file or try another browser.');
-    });
+    label.textContent = series ? name + ' · Part ' + (index + 1) + ' of ' + parts.length : name;
+    media.setAttribute('aria-label', label.textContent);
     media.src = url;
-    $('player').replaceChildren(label, media);
+    if (!media.isConnected) $('player').replaceChildren(label, media);
     status('');
     media.play().catch(() => {});
+  }
+
+  media.addEventListener('error', () => {
+    if (attempt === selection) status('Playback failed. Select Watch or Listen to try again.');
+  });
+  if (series) {
+    media.addEventListener('ended', () => {
+      if (attempt !== selection) return;
+      index = (index + 1) % parts.length;
+      loadPart().catch((error) => {
+        if (attempt === selection) status(error.message);
+      });
+    });
+  }
+  try {
+    await loadPart();
   } catch (error) {
     if (attempt === selection) status(error.message);
   } finally {

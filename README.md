@@ -11,3 +11,5 @@ GitHub Pages hosts the interface. The storage service uses a private R2 bucket. 
 
 MP3s can be up to 95 MB. MP4s can be up to 5 GB (5,000,000,000 bytes). Keep the tab open until the upload finishes. MP4 playback depends on browser codec support. Everyone with the room code can access and add to the shared library.
 
+Give split MP4s the same title and unique part numbers, such as `Movie Part 1.mp4` and `Movie Part 2.mp4`. They appear as one Watch entry and play in numeric order, looping back to the first part after the last one ends.
+

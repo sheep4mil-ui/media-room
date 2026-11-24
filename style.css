@@ -27,3 +27,4 @@ li span { overflow-wrap: anywhere; }
 audio, video { display: block; width: 100%; margin-top: .5rem; }
 video { max-height: 65vh; background: #10111d; }
 #status { margin-top: 1rem; overflow-wrap: anywhere; }
+.series-help { color: #c3bfd8; margin-bottom: .75rem; }
