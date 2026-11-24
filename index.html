@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>Media Room</title><link rel="stylesheet" href="style.css"></head>
+<body><main>
+<header><div class="mark" aria-hidden="true">♫</div><div><h1>Media Room</h1><p>Your MP3s and MP4s, on any device.</p></div></header>
+<section id="entrance"><h2>Enter the room</h2><form id="gate"><label for="code">Entrance code</label><div class="row"><input id="code" type="password" inputmode="numeric" maxlength="4" required><button>Enter</button></div></form></section>
+<section id="library" hidden>
+<div class="row spread"><h2>Room library</h2><button id="logout" class="secondary" type="button">Leave room</button></div>
+<form id="upload"><label for="media">Choose an MP3 or MP4</label><div class="row"><input id="media" type="file" accept=".mp3,.mp4,audio/mpeg,video/mp4" required><button id="uploadButton">Upload</button></div></form>
+<div id="player"></div><div class="row spread"><h3>Uploads</h3><button id="refresh" class="secondary" type="button">Refresh</button></div>
+<p id="empty" hidden>Your uploads will appear here.</p><ul id="tracks"></ul>
+</section>
+<p id="status" role="status" aria-live="polite"></p>
+</main><script type="module" src="app.js"></script></body></html>

@@ -1,0 +1,29 @@
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; min-height: 100vh; background: radial-gradient(ellipse at top, #222443, #10111d 68%); color: #f5f3ff; font: 1rem/1.5 system-ui, sans-serif; }
+main { max-width: 51rem; margin: auto; padding: clamp(1.25rem, 5vw, 4rem); }
+header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+h1, h2, h3, p { margin: 0; }
+header p, #empty, #status { color: #c3bfd8; }
+h1 { font-size: clamp(2rem, 7vw, 3.5rem); line-height: 1.05; letter-spacing: -.05em; }
+header p { margin-top: .4rem; }
+.mark { display: grid; place-items: center; flex: 0 0 3.5rem; height: 3.5rem; border-radius: 1rem; background: #c6b3ff; color: #221540; font-size: 2rem; }
+section { background: #1b1c30; border: 1px solid #3b3c57; border-radius: 1.2rem; padding: clamp(1rem, 4vw, 2rem); }
+section > h2, form, #player:not(:empty), .spread { margin-bottom: 1rem; }
+form:last-child { margin-bottom: 0; }
+label { display: block; margin-bottom: .5rem; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
+.spread { justify-content: space-between; }
+input, button { font: inherit; }
+input { color: inherit; background: #141424; border: 1px solid #555674; border-radius: .6rem; padding: .6rem; max-width: 100%; }
+#code { width: 8rem; }
+button { cursor: pointer; border: 1px solid transparent; border-radius: .6rem; padding: .6rem .95rem; color: #241840; background: #c6b3ff; font-weight: 700; }
+button.secondary { color: inherit; background: transparent; border-color: #666784; }
+button:disabled { opacity: .55; cursor: wait; }
+:focus-visible { outline: 3px solid #ded1ff; outline-offset: 3px; }
+ul { list-style: none; padding: 0; margin: 0; }
+li { display: flex; gap: .75rem; align-items: center; justify-content: space-between; border-top: 1px solid #3b3c57; padding: .7rem 0; }
+li span { overflow-wrap: anywhere; }
+audio, video { display: block; width: 100%; margin-top: .5rem; }
+video { max-height: 65vh; background: #10111d; }
+#status { margin-top: 1rem; overflow-wrap: anywhere; }
