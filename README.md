@@ -1,8 +1,8 @@
 # Media Room
 
-GitHub Pages hosts the interface. A Cloudflare Worker stores the shared MP3 and MP4 library in a private R2 bucket. Visitors enter the room code and can upload or play files. The same library appears on every device.
+GitHub Pages hosts the interface. The storage service uses a private R2 bucket. Visitors enter the room code and can upload or play files. The same library appears on every device.
 
-## Deployment
+## Deploying a separate copy
 
 1. Configure `SITE_ORIGIN` in `worker/wrangler.toml` for the Pages domain.
 2. In the `worker` directory, sign in with Wrangler and create the R2 bucket with `npx wrangler r2 bucket create media-room`.
