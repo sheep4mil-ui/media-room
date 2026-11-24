@@ -1,12 +1,14 @@
 const encoder = new TextEncoder();
 const maxBytes = 95_000_000;
+const maxVideoBytes = 5_000_000_000;
+const partBytes = 16 * 1024 * 1024;
 
 async function sign(secret, value) {
   const key = await crypto.subtle.importKey('raw', encoder.encode(secret), {
     name: 'HMAC', hash: 'SHA-256',
   }, false, ['sign', 'verify']);
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(value));
-  return new Uint8Array(signature).toHex();
+  return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 async function issue(env, purpose, lifetime) {
@@ -20,7 +22,8 @@ async function valid(env, token, purpose) {
   const key = await crypto.subtle.importKey('raw', encoder.encode(env.SESSION_SECRET), {
     name: 'HMAC', hash: 'SHA-256',
   }, false, ['verify']);
-  return crypto.subtle.verify('HMAC', key, Uint8Array.fromHex(match[2]), encoder.encode(purpose + ':' + match[1]));
+  const signature = Uint8Array.from(match[2].match(/../g), (byte) => parseInt(byte, 16));
+  return crypto.subtle.verify('HMAC', key, signature, encoder.encode(purpose + ':' + match[1]));
 }
 
 function getRange(value, size) {
@@ -31,6 +34,81 @@ function getRange(value, size) {
   return start <= end ? { offset: start, length: end - start + 1 } : null;
 }
 
+async function allowEntry(env, ip) {
+  const key = 'attempts/' + await sign(env.SESSION_SECRET, ip);
+  const minute = Math.floor(Date.now() / 60000);
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const entry = await env.MEDIA.head(key);
+    const count = entry?.customMetadata?.minute === String(minute)
+      ? Number(entry.customMetadata.count) : 0;
+    if (count >= 5) return false;
+    const result = await env.MEDIA.put(key, minute + ':' + (count + 1), {
+      onlyIf: entry ? { etagMatches: entry.etag } : { etagDoesNotMatch: '*' },
+      customMetadata: { minute: String(minute), count: String(count + 1) },
+    });
+    if (result) return true;
+  }
+  return false;
+}
+
+async function multipart(request, env, url, json) {
+  const operation = url.pathname.slice('/uploads/'.length);
+  if (request.method === 'POST' && operation === 'start') {
+    const { name, size } = await request.json();
+    if (typeof name !== 'string' || name.length > 255 || !/\.mp4$/i.test(name)) {
+      return json({ error: 'Choose an MP4 video.' }, 400);
+    }
+    if (!Number.isSafeInteger(size) || size < 1 || size > maxVideoBytes) {
+      return json({ error: 'Choose a video up to 5 GB.' }, 413);
+    }
+    const key = crypto.randomUUID() + '.mp4';
+    const { uploadId } = await env.MEDIA.createMultipartUpload(key, { customMetadata: { name } });
+    const ticket = await issue(env, JSON.stringify([key, uploadId, size]), 12 * 3600);
+    return json({ key, uploadId, ticket, partBytes }, 201);
+  }
+
+  const key = url.searchParams.get('key');
+  const uploadId = url.searchParams.get('id');
+  const size = Number(url.searchParams.get('size'));
+  const ticket = request.headers.get('X-Upload-Ticket');
+  if (!key || !uploadId || !await valid(env, ticket, JSON.stringify([key, uploadId, size]))) {
+    return json({ error: 'This upload session is invalid or expired.' }, 403);
+  }
+  const upload = env.MEDIA.resumeMultipartUpload(key, uploadId);
+  const count = Math.ceil(size / partBytes);
+  if (request.method === 'PUT' && operation === 'part') {
+    const partNumber = Number(url.searchParams.get('part'));
+    if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > count) {
+      return json({ error: 'Invalid video part number.' }, 400);
+    }
+    const expected = Math.min(partBytes, size - (partNumber - 1) * partBytes);
+    if (Number(request.headers.get('Content-Length')) !== expected) {
+      return json({ error: 'Invalid video part size.' }, 400);
+    }
+    const bytes = await request.arrayBuffer();
+    if (bytes.byteLength !== expected) return json({ error: 'Incomplete video part.' }, 400);
+    return json(await upload.uploadPart(partNumber, bytes));
+  }
+  if (request.method === 'POST' && operation === 'complete') {
+    const { parts } = await request.json();
+    if (!Array.isArray(parts) || parts.length !== count || parts.some((part, index) => (
+      part?.partNumber !== index + 1 || typeof part.etag !== 'string' || part.etag.length > 128
+    ))) return json({ error: 'Some video parts are missing.' }, 400);
+    try {
+      await upload.complete(parts);
+    } catch (error) {
+      const object = await env.MEDIA.head(key);
+      if (object?.size !== size) throw error;
+    }
+    return json({ key }, 201);
+  }
+  if (request.method === 'POST' && operation === 'abort') {
+    await upload.abort();
+    return json({ aborted: true });
+  }
+  return json({ error: 'Page not found.' }, 404);
+}
+
 async function route(request, env, headers) {
   const url = new URL(request.url);
   const json = (value, status = 200) => Response.json(value, { status, headers });
@@ -39,8 +117,7 @@ async function route(request, env, headers) {
 
   if (request.method === 'POST' && url.pathname === '/enter') {
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-    const { success } = await env.ENTRY_LIMIT.limit({ key: ip });
-    if (!success) return json({ error: 'Too many attempts. Try again in a minute.' }, 429);
+    if (!await allowEntry(env, ip)) return json({ error: 'Too many attempts. Try again in a minute.' }, 429);
     const code = await request.text();
     if (code !== env.ENTRANCE_CODE) return json({ error: 'Incorrect entrance code.' }, 401);
     return json({ token: await issue(env, 'session', 12 * 3600) });
@@ -68,11 +145,12 @@ async function route(request, env, headers) {
 
   const session = request.headers.get('Authorization')?.replace(/^Bearer /, '');
   if (!await valid(env, session, 'session')) return json({ error: 'Enter the room code again.' }, 401);
+  if (url.pathname.startsWith('/uploads/')) return multipart(request, env, url, json);
 
   if (request.method === 'GET' && url.pathname === '/files') {
     const result = await env.MEDIA.list({ limit: 100, cursor: url.searchParams.get('cursor') || undefined, include: ['customMetadata'] });
     return json({
-      files: result.objects.map((object) => ({
+      files: result.objects.filter((object) => !object.key.startsWith('attempts/')).map((object) => ({
         key: object.key, name: object.customMetadata?.name || object.key, uploaded: object.uploaded,
       })),
       cursor: result.truncated ? result.cursor : null,
@@ -105,7 +183,7 @@ export default {
       'X-Content-Type-Options': 'nosniff',
       'Access-Control-Allow-Origin': env.SITE_ORIGIN,
       'Access-Control-Allow-Methods': 'GET, HEAD, PUT, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Upload-Ticket',
       'Vary': 'Origin',
     });
     if (origin && origin !== env.SITE_ORIGIN) return new Response(null, { status: 403, headers });

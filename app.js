@@ -1,4 +1,4 @@
-import { apiUrl } from './config.js';
+import { apiUrl } from './config.js?v=2';
 
 const $ = (id) => document.getElementById(id);
 const status = (message) => { $('status').textContent = message; };
@@ -27,7 +27,11 @@ async function request(path, options = {}) {
   const response = await fetch(apiUrl.replace(/\/$/, '') + path, { ...options, headers });
   const body = await response.json().catch(() => ({}));
   if (response.status === 401 && session && token === session) leave(body.error);
-  if (!response.ok) throw new Error(body.error || 'Request failed. Try again.');
+  if (!response.ok) {
+    const error = new Error(body.error || 'Request failed (HTTP ' + response.status + ').');
+    error.status = response.status;
+    throw error;
+  }
   return body;
 }
 
@@ -117,20 +121,70 @@ $('gate').addEventListener('submit', async (event) => {
   }
 });
 
+async function retryUploadStep(path, options) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await request(path, options);
+    } catch (error) {
+      const temporary = error instanceof TypeError || error.status >= 500 || error.status === 429;
+      if (!temporary || attempt >= 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
+    }
+  }
+}
+
+async function uploadVideo(file) {
+  const { key, uploadId, ticket, partBytes } = await request('/uploads/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: file.name, size: file.size }),
+  });
+  const query = new URLSearchParams({ key, id: uploadId, size: String(file.size) });
+  const headers = { 'X-Upload-Ticket': ticket };
+  const parts = [];
+  try {
+    for (let offset = 0; offset < file.size; offset += partBytes) {
+      if (!token) throw new Error('You left the room.');
+      const end = Math.min(offset + partBytes, file.size);
+      const part = await retryUploadStep('/uploads/part?' + query + '&part=' + (parts.length + 1), {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/octet-stream' },
+        body: file.slice(offset, end),
+      });
+      parts.push(part);
+      status('Uploading ' + file.name + '… ' + Math.floor(end / file.size * 100) + '%');
+    }
+    status('Finishing ' + file.name + '…');
+    await retryUploadStep('/uploads/complete?' + query, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parts }),
+    });
+  } catch (error) {
+    if (token) request('/uploads/abort?' + query, { method: 'POST', headers }).catch(() => {});
+    throw error;
+  }
+}
+
 $('upload').addEventListener('submit', async (event) => {
   event.preventDefault();
   const file = $('media').files[0];
-  if (!file || !/\.(mp3|mp4)$/i.test(file.name) || !file.size || file.size > 95_000_000) {
-    status('Choose an MP3 or MP4 between 1 byte and 95 MB.');
+  const isVideo = /\.mp4$/i.test(file?.name || '');
+  if (!file || !/\.(mp3|mp4)$/i.test(file.name) || !file.size || file.size > (isVideo ? 5_000_000_000 : 95_000_000)) {
+    status('Choose an MP3 up to 95 MB or an MP4 up to 5 GB.');
     return;
   }
   $('uploadButton').disabled = true;
   $('media').disabled = true;
   status('Uploading ' + file.name + '…');
   try {
-    await request('/files?name=' + encodeURIComponent(file.name), {
-      method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: file,
-    });
+    if (isVideo && file.size > 16 * 1024 * 1024) {
+      await uploadVideo(file);
+    } else {
+      await request('/files?name=' + encodeURIComponent(file.name), {
+        method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: file,
+      });
+    }
     $('upload').reset();
     if (!token) return;
     try {

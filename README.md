@@ -9,5 +9,5 @@ GitHub Pages hosts the interface. The storage service uses a private R2 bucket. 
 3. Set `ENTRANCE_CODE` and `SESSION_SECRET` through `npx wrangler secret put NAME`. Use the requested room code for the first secret and a random value of at least 32 bytes for the second. Deploy with `npx wrangler deploy`.
 4. Put the Worker URL in `config.js`. Commit and publish the frontend with GitHub Pages.
 
-Files can be up to 95 MB. MP4 playback depends on browser codec support. Everyone with the room code can access and add to the shared library.
+MP3s can be up to 95 MB. MP4s can be up to 5 GB (5,000,000,000 bytes). Keep the tab open until the upload finishes. MP4 playback depends on browser codec support. Everyone with the room code can access and add to the shared library.
 
